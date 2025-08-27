@@ -11,6 +11,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [token, setToken] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     // Fetch privacy scan results on mount (assume user is authenticated)
@@ -19,10 +21,11 @@ function App() {
 
 const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
 const fetchPrivacyResults = async () => {
+  if (!token) return;  // Skip if not logged in
   try {
     const response = await fetch(`${backendUrl}/api/privacy`, {
       headers: {
-        'Authorization': 'Bearer mock_token'
+        'Authorization': `Bearer ${token}`
       }
     });
     if (!response.ok) throw new Error('Failed to fetch privacy results');
@@ -33,7 +36,7 @@ const fetchPrivacyResults = async () => {
   }
 };
 
-const handleLogin = async () => {
+const handleLogin = async (email, password) => {
   try {
     const response = await fetch(`${backendUrl}/auth/login`, {
       method: 'POST',
@@ -41,36 +44,41 @@ const handleLogin = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        email: 'test@example.com',
-        password: 'any_password'
+        email: email,
+        password: password
       })
     });
     if (!response.ok) throw new Error('Login failed');
     const data = await response.json();
     setToken(data.access_token);
+    fetchPrivacyResults();
   } catch (err) {
     setError(err.message);
   }
 };
 
 const handleUpload = async (file) => {
+  if (!token) {
+    setError('Please login first');
+    return;
+  }
   setLoading(true);
   setError(null);
   setScanResults(null);
   setSelectedMatches([]);
 
   const formData = new FormData();
-  formData.append('image', file);
+  formData.append('file', file);  // Changed from 'image' to 'file'
 
   try {
     const response = await fetch(`${backendUrl}/api/scan`, {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer mock_token'
+        'Authorization': `Bearer ${token}`  // Use real token
       },
       body: formData,
     });
-    if (!response.ok) throw new Error('Scan failed');
+    if (!response.ok) throw new Error(`Scan failed: ${response.statusText}`);
     const data = await response.json();
     setScanResults(data);
   } catch (err) {
@@ -103,9 +111,9 @@ const handleTakedown = async () => {
       const response = await fetch(`${backendUrl}/api/takedown`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer mock_token'
-        },
+  'Content-Type': 'application/json',
+  'Authorization': `Bearer ${token}`
+},
         body: JSON.stringify(takedownRequest),
       });
       if (!response.ok) throw new Error(`Takedown failed for ${match.platform}`);
@@ -128,7 +136,43 @@ const handleTakedown = async () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+<div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+  {!token ? (
+    <div className="w-full max-w-md bg-white p-6 rounded shadow">
+      <h2 className="text-2xl font-bold mb-4">Login to AuthentiSell</h2>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleLogin(email, password);
+        }}
+      >
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1">Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-2 border rounded"
+            required
+          />
+        </div>
+        <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded">
+          Login
+        </button>
+      </form>
+    </div>
+  ) : (
+    <>
       <header className="text-3xl font-bold mb-6">AuthentiSell Dashboard</header>
       <p className="text-center mb-8 max-w-md">
         AuthentiSell: Easily protect your intellectual property by scanning for theft, monitoring privacy alerts, and requesting takedowns.
@@ -149,7 +193,9 @@ const handleTakedown = async () => {
       )}
 
       <PrivacyScan results={privacyResults} />
-    </div>
+    </>
+  )}
+</div>
   );
 }
 
