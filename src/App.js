@@ -10,6 +10,7 @@ function App() {
   const [selectedMatches, setSelectedMatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [token, setToken] = useState(null);
 
   useEffect(() => {
     // Fetch privacy scan results on mount (assume user is authenticated)
@@ -18,10 +19,34 @@ function App() {
 
   const fetchPrivacyResults = async () => {
     try {
-      const response = await fetch('/api/privacy'); // Backend endpoint for privacy monitoring
+      const response = await fetch('/api/privacy', {
+        headers: {
+          'Authorization': 'Bearer mock_token'
+        }
+      }); // Backend endpoint for privacy monitoring
       if (!response.ok) throw new Error('Failed to fetch privacy results');
       const data = await response.json();
       setPrivacyResults(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      const response = await fetch('/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: 'test@example.com',
+          password: 'any_password'
+        })
+      });
+      if (!response.ok) throw new Error('Login failed');
+      const data = await response.json();
+      setToken(data.access_token);
     } catch (err) {
       setError(err.message);
     }
@@ -37,8 +62,11 @@ function App() {
     formData.append('image', file);
 
     try {
-      const response = await fetch('/api/scan', { // Backend endpoint for IP theft detection
+      const response = await fetch('/api/scan', {
         method: 'POST',
+        headers: {
+          'Authorization': 'Bearer mock_token'
+        },
         body: formData,
       });
       if (!response.ok) throw new Error('Scan failed');
@@ -64,18 +92,21 @@ function App() {
       for (const match of selectedMatches) {
         const takedownRequest = {
           platform: match.platform,
-          listing_url: match.page_url || match.image_url, // Assume page_url from detection JSON
+          listing_url: match.page_url || match.image_url,
           evidence: `Image match confidence: ${match.confidence}`,
-          copyright_proof: 'User-uploaded original product image', // Placeholder; in prod, collect from user
-          user_contact: { name: 'User Name', email: 'user@example.com', address: 'User Address' }, // From auth
+          copyright_proof: 'User-uploaded original product image',
+          user_contact: { name: 'User Name', email: 'user@example.com', address: 'User Address' },
           statement_good_faith: 'I believe in good faith that the use of the material is not authorized.',
           statement_accuracy: 'Under penalty of perjury, the information is accurate.',
-          signature: 'User Name' // Electronic signature
+          signature: 'User Name'
         };
 
-        const response = await fetch('/api/takedown', { // Backend endpoint for takedown
+        const response = await fetch('/api/takedown', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer mock_token'
+          },
           body: JSON.stringify(takedownRequest),
         });
         if (!response.ok) throw new Error(`Takedown failed for ${match.platform}`);
