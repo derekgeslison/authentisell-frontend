@@ -17,108 +17,107 @@ function App() {
     fetchPrivacyResults();
   }, []);
 
-  const fetchPrivacyResults = async () => {
-    try {
-      const response = await fetch('/api/privacy', {
-        headers: {
-          'Authorization': 'Bearer mock_token'
-        }
-      }); // Backend endpoint for privacy monitoring
-      if (!response.ok) throw new Error('Failed to fetch privacy results');
-      const data = await response.json();
-      setPrivacyResults(data);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleLogin = async () => {
-    try {
-      const response = await fetch('/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: 'test@example.com',
-          password: 'any_password'
-        })
-      });
-      if (!response.ok) throw new Error('Login failed');
-      const data = await response.json();
-      setToken(data.access_token);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const handleUpload = async (file) => {
-    setLoading(true);
-    setError(null);
-    setScanResults(null);
-    setSelectedMatches([]);
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    try {
-      const response = await fetch('/api/scan', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer mock_token'
-        },
-        body: formData,
-      });
-      if (!response.ok) throw new Error('Scan failed');
-      const data = await response.json();
-      setScanResults(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTakedown = async () => {
-    if (selectedMatches.length === 0) {
-      alert('Please select at least one match to takedown.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      for (const match of selectedMatches) {
-        const takedownRequest = {
-          platform: match.platform,
-          listing_url: match.page_url || match.image_url,
-          evidence: `Image match confidence: ${match.confidence}`,
-          copyright_proof: 'User-uploaded original product image',
-          user_contact: { name: 'User Name', email: 'user@example.com', address: 'User Address' },
-          statement_good_faith: 'I believe in good faith that the use of the material is not authorized.',
-          statement_accuracy: 'Under penalty of perjury, the information is accurate.',
-          signature: 'User Name'
-        };
-
-        const response = await fetch('/api/takedown', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer mock_token'
-          },
-          body: JSON.stringify(takedownRequest),
-        });
-        if (!response.ok) throw new Error(`Takedown failed for ${match.platform}`);
+const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+const fetchPrivacyResults = async () => {
+  try {
+    const response = await fetch(`${backendUrl}/api/privacy`, {
+      headers: {
+        'Authorization': 'Bearer mock_token'
       }
-      alert('Takedown requests submitted successfully!');
-      setSelectedMatches([]);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    });
+    if (!response.ok) throw new Error('Failed to fetch privacy results');
+    const data = await response.json();
+    setPrivacyResults(data);
+  } catch (err) {
+    setError(err.message);
+  }
+};
+
+const handleLogin = async () => {
+  try {
+    const response = await fetch(`${backendUrl}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: 'test@example.com',
+        password: 'any_password'
+      })
+    });
+    if (!response.ok) throw new Error('Login failed');
+    const data = await response.json();
+    setToken(data.access_token);
+  } catch (err) {
+    setError(err.message);
+  }
+};
+
+const handleUpload = async (file) => {
+  setLoading(true);
+  setError(null);
+  setScanResults(null);
+  setSelectedMatches([]);
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const response = await fetch(`${backendUrl}/api/scan`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer mock_token'
+      },
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Scan failed');
+    const data = await response.json();
+    setScanResults(data);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleTakedown = async () => {
+  if (selectedMatches.length === 0) {
+    alert('Please select at least one match to takedown.');
+    return;
+  }
+  setLoading(true);
+  setError(null);
+
+  try {
+    for (const match of selectedMatches) {
+      const takedownRequest = {
+        platform: match.platform,
+        listing_url: match.page_url || match.image_url,
+        evidence: `Image match confidence: ${match.confidence}`,
+        copyright_proof: 'User-uploaded original product image',
+        user_contact: { name: 'User Name', email: 'user@example.com', address: 'User Address' },
+        statement_good_faith: 'I believe in good faith that the use of the material is not authorized.',
+        statement_accuracy: 'Under penalty of perjury, the information is accurate.',
+        signature: 'User Name'
+      };
+      const response = await fetch(`${backendUrl}/api/takedown`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer mock_token'
+        },
+        body: JSON.stringify(takedownRequest),
+      });
+      if (!response.ok) throw new Error(`Takedown failed for ${match.platform}`);
     }
-  };
+    alert('Takedown requests submitted successfully!');
+    setSelectedMatches([]);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const toggleSelection = (match) => {
     setSelectedMatches((prev) =>
@@ -130,9 +129,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
-      <header className="text-3xl font-bold mb-6">PrivacyPal Dashboard</header>
+      <header className="text-3xl font-bold mb-6">AuthentiSell Dashboard</header>
       <p className="text-center mb-8 max-w-md">
-        Protect your creations easily: Upload images to scan for theft, view privacy alerts, and request takedowns with one click.
+        AuthentiSell: Easily protect your intellectual property by scanning for theft, monitoring privacy alerts, and requesting takedowns.
       </p>
 
       <UploadForm onUpload={handleUpload} loading={loading} />
