@@ -15,138 +15,112 @@ function App() {
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    // Fetch privacy scan results on mount (assume user is authenticated)
     fetchPrivacyResults();
-  }, []);
+  }, [token]); // Run when token changes
 
-const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-const fetchPrivacyResults = async () => {
-  if (!token) return;  // Skip if not logged in
-  try {
-    const response = await fetch(`${backendUrl}/api/privacy`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    if (!response.ok) throw new Error('Failed to fetch privacy results');
-    const data = await response.json();
-    setPrivacyResults(data);
-  } catch (err) {
-    setError(err.message);
-  }
-};
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
 
-const handleLogin = async (email, password) => {
-  try {
-    const response = await fetch(`${backendUrl}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: email,
-        password: password
-      })
-    });
-    if (!response.ok) throw new Error('Login failed');
-    const data = await response.json();
-    setToken(data.access_token);
-    fetchPrivacyResults();
-  } catch (err) {
-    setError(err.message);
-  }
-};
+  const fetchPrivacyResults = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch(`${backendUrl}/api/privacy`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch privacy results');
+      const data = await response.json();
+      setPrivacyResults(data);
+    } catch (err) {
+      setError(err.message);
+      console.error('Privacy fetch error:', err.message);
+    }
+  };
 
-const handleUpload = async (file) => {
-  if (!token) {
-    setError('Please login first');
-    return;
-  }
-  setLoading(true);
-  setError(null);
-  setScanResults(null);
-  setSelectedMatches([]);
-
-  const formData = new FormData();
-  formData.append('file', file);  // Changed from 'image' to 'file'
-
-try {
-  const response = await fetch(`${backendUrl}/api/scan`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    body: formData,
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(`Scan failed: ${errorData.detail || response.statusText}`);
-  }
-  const data = await response.json();
-  setScanResults(data);
-} catch (err) {
-  setError(err.message);
-  console.error('Upload error:', err.message);
-  alert(`Error: ${err.message}`); // Add user-facing error
-} finally {
-  setLoading(false);
-}
-
-{loading && <p>Loading...</p>}
-{error && <p style={{color: 'red'}}>{error}</p>}
-{scanResults && (
-  <div>
-    <h2>Scan Results</h2>
-    {scanResults.matches.length > 0 ? (
-      <ul>
-        {scanResults.matches.map((match, index) => (
-          <li key={index}>{match.description}: <a href={match.url}>{match.url}</a></li>
-        ))}
-      </ul>
-    ) : (
-      <p>No matches found.</p>
-    )}
-  </div>
-)}
-
-const handleTakedown = async () => {
-  if (selectedMatches.length === 0) {
-    alert('Please select at least one match to takedown.');
-    return;
-  }
-  setLoading(true);
-  setError(null);
-
-  try {
-    for (const match of selectedMatches) {
-      const takedownRequest = {
-        platform: match.platform,
-        listing_url: match.page_url || match.image_url,
-        evidence: `Image match confidence: ${match.confidence}`,
-        copyright_proof: 'User-uploaded original product image',
-        user_contact: { name: 'User Name', email: 'user@example.com', address: 'User Address' },
-        statement_good_faith: 'I believe in good faith that the use of the material is not authorized.',
-        statement_accuracy: 'Under penalty of perjury, the information is accurate.',
-        signature: 'User Name'
-      };
-      const response = await fetch(`${backendUrl}/api/takedown`, {
+  const handleLogin = async (email, password) => {
+    try {
+      const response = await fetch(`${backendUrl}/auth/login`, {
         method: 'POST',
         headers: {
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${token}`
-},
-        body: JSON.stringify(takedownRequest),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password
+        })
       });
-      if (!response.ok) throw new Error(`Takedown failed for ${match.platform}`);
+      if (!response.ok) throw new Error('Login failed');
+      const data = await response.json();
+      setToken(data.access_token);
+      localStorage.setItem('token', data.access_token); // Persist token
+    } catch (err) {
+      setError(err.message);
+      console.error('Login error:', err.message);
     }
-    alert('Takedown requests submitted successfully!');
-    setSelectedMatches([]);
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  const handleUpload = async (formData, token) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${backendUrl}/api/scan`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Scan failed: ${errorData.detail || response.statusText}`);
+      }
+      const data = await response.json();
+      setScanResults(data);
+    } catch (err) {
+      setError(err.message);
+      console.error('Upload error:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTakedown = async () => {
+    if (selectedMatches.length === 0) {
+      setError('Please select at least one match to takedown.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      for (const match of selectedMatches) {
+        const takedownRequest = {
+          platform: match.platform,
+          listing_url: match.page_url || match.image_url,
+          evidence: `Image match confidence: ${match.confidence}`,
+          copyright_proof: 'User-uploaded original product image',
+          user_contact: { name: 'User Name', email: 'user@example.com', address: 'User Address' },
+          statement_good_faith: 'I believe in good faith that the use of the material is not authorized.',
+          statement_accuracy: 'Under penalty of perjury, the information is accurate.',
+          signature: 'User Name'
+        };
+        const response = await fetch(`${backendUrl}/api/takedown`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(takedownRequest),
+        });
+        if (!response.ok) throw new Error(`Takedown failed for ${match.platform}`);
+      }
+      setError(null);
+      alert('Takedown requests submitted successfully!');
+      setSelectedMatches([]);
+    } catch (err) {
+      setError(err.message);
+      console.error('Takedown error:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleSelection = (match) => {
     setSelectedMatches((prev) =>
@@ -157,66 +131,85 @@ const handleTakedown = async () => {
   };
 
   return (
-<div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
-  {!token ? (
-    <div className="w-full max-w-md bg-white p-6 rounded shadow">
-      <h2 className="text-2xl font-bold mb-4">Login to AuthentiSell</h2>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleLogin(email, password);
-        }}
-      >
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-2 border rounded"
-            required
-          />
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center p-4">
+      {!token ? (
+        <div className="w-full max-w-md bg-white p-6 rounded shadow">
+          <h2 className="text-2xl font-bold mb-4">Login to AuthentiSell</h2>
+          {error && (
+            <p className="text-red-500 text-center mb-4">{error}</p>
+          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleLogin(email, password);
+            }}
+          >
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-2 border rounded"
+                required
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-2 border rounded"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+              disabled={loading}
+            >
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
         </div>
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-1">Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border rounded"
-            required
-          />
-        </div>
-        <button type="submit" className="w-full bg-blue-500 text-white p-2 rounded">
-          Login
-        </button>
-      </form>
-    </div>
-  ) : (
-    <>
-      <header className="text-3xl font-bold mb-6">AuthentiSell Dashboard</header>
-      <p className="text-center mb-8 max-w-md">
-        AuthentiSell: Easily protect your intellectual property by scanning for theft, monitoring privacy alerts, and requesting takedowns.
-      </p>
-
-      <UploadForm onUpload={handleUpload} loading={loading} />
-
-      {error && <p className="text-red-500 mt-4">{error}</p>}
-
-      {scanResults && (
-        <ScanResults
-          results={scanResults}
-          selectedMatches={selectedMatches}
-          toggleSelection={toggleSelection}
-          onTakedown={handleTakedown}
-          loading={loading}
-        />
+      ) : (
+        <>
+          <header className="text-3xl font-bold mb-6">AuthentiSell Dashboard</header>
+          <p className="text-center mb-8 max-w-md">
+            AuthentiSell: Easily protect your intellectual property by scanning for theft, monitoring privacy alerts, and requesting takedowns.
+          </p>
+          {loading && (
+            <div className="text-center mb-4">
+              <p>Loading...</p>
+              <div className="spinner" style={{
+                border: '4px solid #f3f3f3',
+                borderTop: '4px solid #3498db',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto'
+              }}></div>
+            </div>
+          )}
+          {error && (
+            <p className="text-red-500 text-center mb-4 bg-red-100 p-2 rounded">{error}</p>
+          )}
+          <UploadForm onUpload={handleUpload} loading={loading} />
+          {scanResults && (
+            <ScanResults
+              results={scanResults}
+              selectedMatches={selectedMatches}
+              toggleSelection={toggleSelection}
+              onTakedown={handleTakedown}
+              loading={loading}
+            />
+          )}
+          <PrivacyScan results={privacyResults} />
+        </>
       )}
-
-      <PrivacyScan results={privacyResults} />
-    </>
-  )}
-</div>
+    </div>
   );
 }
 
