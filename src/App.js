@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import UploadForm from './components/UploadForm';
 import ScanResults from './components/ScanResults';
 import PrivacyScan from './components/PrivacyScan';
+import { auth, signInWithEmailAndPassword } from './firebase';
 
 function App() {
   const [scanResults, setScanResults] = useState(null);
@@ -37,27 +38,17 @@ function App() {
     }
   };
 
-  const handleLogin = async (email, password) => {
-    try {
-      const response = await fetch(`${backendUrl}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password
-        })
-      });
-      if (!response.ok) throw new Error('Login failed');
-      const data = await response.json();
-      setToken(data.access_token);
-      localStorage.setItem('token', data.access_token); // Persist token
-    } catch (err) {
-      setError(err.message);
-      console.error('Login error:', err.message);
-    }
-  };
+async function handleLogin(email, password) {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const token = await userCredential.user.getIdToken();
+    localStorage.setItem('token', token);
+    window.location.href = '/dashboard';
+  } catch (error) {
+    setError('Login failed: ' + error.message);
+    console.error('Login error:', error.message);
+  }
+};
 
   const handleUpload = async (formData, token) => {
     setLoading(true);
