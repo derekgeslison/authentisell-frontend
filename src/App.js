@@ -70,23 +70,44 @@ const handleUpload = async (file) => {
   const formData = new FormData();
   formData.append('file', file);  // Changed from 'image' to 'file'
 
-  try {
-    const response = await fetch(`${backendUrl}/api/scan`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`  // Use real token
-      },
-      body: formData,
-    });
-    if (!response.ok) throw new Error(`Scan failed: ${response.statusText}`);
-    const data = await response.json();
-    setScanResults(data);
-  } catch (err) {
-    setError(err.message);
-  } finally {
-    setLoading(false);
+try {
+  const response = await fetch(`${backendUrl}/api/scan`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`Scan failed: ${errorData.detail || response.statusText}`);
   }
-};
+  const data = await response.json();
+  setScanResults(data);
+} catch (err) {
+  setError(err.message);
+  console.error('Upload error:', err.message);
+  alert(`Error: ${err.message}`); // Add user-facing error
+} finally {
+  setLoading(false);
+}
+
+{loading && <p>Loading...</p>}
+{error && <p style={{color: 'red'}}>{error}</p>}
+{scanResults && (
+  <div>
+    <h2>Scan Results</h2>
+    {scanResults.matches.length > 0 ? (
+      <ul>
+        {scanResults.matches.map((match, index) => (
+          <li key={index}>{match.description}: <a href={match.url}>{match.url}</a></li>
+        ))}
+      </ul>
+    ) : (
+      <p>No matches found.</p>
+    )}
+  </div>
+)}
 
 const handleTakedown = async () => {
   if (selectedMatches.length === 0) {
